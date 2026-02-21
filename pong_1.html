@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PONG</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+:root { --bg:#04040a;--surface:#0a0a14;--card:#10101e;--border:#1a1a2e;--text:#e0e0ff;--muted:#4a4a6a;--cyan:#00f5ff;--pink:#ff00aa; }
+body { background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden; }
+body::after { content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px);pointer-events:none;z-index:999; }
+.screen { display:none;flex-direction:column;align-items:center;justify-content:center;width:100vw;height:100vh;gap:20px;padding:24px; }
+.screen.show { display:flex; }
+.gtitle { font-family:'Bebas Neue',sans-serif;font-size:72px;letter-spacing:12px;color:#fff;text-shadow:0 0 20px var(--cyan),0 0 60px rgba(0,245,255,0.3); }
+.gsub { font-size:10px;color:var(--muted);letter-spacing:3px;margin-top:-14px; }
+.box { background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px;width:100%;max-width:300px;display:flex;flex-direction:column;gap:12px; }
+.blabel { font-size:9px;color:var(--muted);letter-spacing:3px;text-align:center; }
+.inp { background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:16px;outline:none;width:100%;text-align:center;letter-spacing:2px;transition:border-color 0.2s; }
+.inp:focus { border-color:var(--cyan); }
+.inp::placeholder { color:var(--muted);font-size:12px;letter-spacing:1px; }
+.btn { background:transparent;border:2px solid var(--cyan);border-radius:8px;padding:14px;color:var(--cyan);font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:4px;cursor:pointer;transition:all 0.2s;width:100%; }
+.btn:hover { background:var(--cyan);color:var(--bg);box-shadow:0 0 20px rgba(0,245,255,0.4); }
+.err { font-size:10px;color:var(--pink);text-align:center;min-height:14px;letter-spacing:1px; }
+.qbox { background:var(--card);border:1px solid var(--border);border-radius:14px;padding:36px 28px;width:100%;max-width:320px;text-align:center;display:flex;flex-direction:column;gap:16px;align-items:center; }
+.qlabel { font-size:9px;color:var(--muted);letter-spacing:3px; }
+.qname { font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;color:var(--cyan); }
+.qdots { font-size:24px;color:var(--muted);letter-spacing:6px;animation:qd 1.4s infinite; }
+@keyframes qd { 0%,100%{opacity:0.2;}50%{opacity:1;} }
+.qstatus { font-size:10px;color:var(--muted);letter-spacing:2px; }
+.bcancel { background:none;border:1px solid var(--border);border-radius:6px;padding:8px 20px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;transition:all 0.2s;letter-spacing:1px; }
+.bcancel:hover { border-color:var(--pink);color:var(--pink); }
+.gameui { display:flex;flex-direction:column;align-items:center;width:100vw;max-width:600px; }
+.scoreboard { display:flex;justify-content:space-between;align-items:center;width:100%;padding:10px 20px; }
+.sside { text-align:center; }
+.sname { font-size:11px;letter-spacing:2px;color:var(--muted);margin-bottom:2px; }
+.snum { font-family:'Bebas Neue',sans-serif;font-size:52px;line-height:1; }
+.sp1 { color:var(--cyan);text-shadow:0 0 12px rgba(0,245,255,0.5); }
+.sp2 { color:var(--pink);text-shadow:0 0 12px rgba(255,0,170,0.5); }
+.svs { font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--muted);letter-spacing:3px; }
+.ytag { font-size:8px;letter-spacing:2px;padding:2px 7px;border-radius:4px;display:none;margin-top:2px; }
+.yt1 { background:rgba(0,245,255,0.1);color:var(--cyan); }
+.yt2 { background:rgba(255,0,170,0.1);color:var(--pink); }
+canvas { display:block;background:var(--bg);border:1px solid var(--border);border-radius:4px;max-width:100vw; }
+.hintrow { display:flex;justify-content:space-between;width:100%;padding:6px 20px; }
+.hint { font-size:9px;color:var(--muted); }
+.mobctrl { display:none;width:100%;padding:10px 20px;gap:10px;margin-top:4px; }
+@media(max-width:600px){.mobctrl{display:flex;}.hintrow{display:none;}}
+.mobbtn { flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;font-size:22px;cursor:pointer;text-align:center;user-select:none; }
+.mobbtn:active { background:var(--border); }
+.winoverlay { position:fixed;inset:0;background:rgba(4,4,10,0.93);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:14px; }
+.winoverlay.show { display:flex; }
+.wintext { font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:8px; }
+.winsub { font-size:10px;color:var(--muted);letter-spacing:3px; }
+.brematch { background:transparent;border:2px solid var(--cyan);border-radius:8px;padding:12px 32px;color:var(--cyan);font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;cursor:pointer;transition:all 0.2s; }
+.brematch:hover { background:var(--cyan);color:var(--bg); }
+.bmenu { background:none;border:1px solid var(--border);border-radius:8px;padding:10px 24px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;transition:all 0.2s; }
+.bmenu:hover { border-color:var(--pink);color:var(--pink); }
+</style>
+</head>
+<body>
+
+<div class="screen show" id="s-auth">
+  <div class="gtitle">PONG</div>
+  <div class="gsub">// multiplayer</div>
+  <div class="box">
+    <div class="blabel">YOUR USERNAME</div>
+    <input class="inp" id="inp-user" placeholder="e.g. ninja99" maxlength="16" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button class="btn" onclick="findMatch()">FIND MATCH</button>
+    <div class="err" id="auth-err"></div>
+  </div>
+</div>
+
+<div class="screen" id="s-queue">
+  <div class="qbox">
+    <div class="qlabel">SEARCHING FOR OPPONENT</div>
+    <div class="qname" id="q-name">—</div>
+    <div class="qdots">● ● ●</div>
+    <div class="qstatus">WAITING IN QUEUE</div>
+    <button class="bcancel" onclick="cancelQueue()">CANCEL</button>
+  </div>
+</div>
+
+<div class="screen" id="s-game">
+  <div class="gameui">
+    <div class="scoreboard">
+      <div class="sside">
+        <div class="sname" id="n-p1">P1</div>
+        <div class="snum sp1" id="sc-p1">0</div>
+        <div class="ytag yt1" id="yt-p1">YOU</div>
+      </div>
+      <div class="svs">VS</div>
+      <div class="sside">
+        <div class="sname" id="n-p2">P2</div>
+        <div class="snum sp2" id="sc-p2">0</div>
+        <div class="ytag yt2" id="yt-p2">YOU</div>
+      </div>
+    </div>
+    <canvas id="c" width="560" height="340"></canvas>
+    <div class="hintrow">
+      <div class="hint">W / S or ↑↓ to move</div>
+      <div class="hint">first to 7 wins</div>
+    </div>
+    <div class="mobctrl">
+      <div class="mobbtn" ontouchstart="md=-1" ontouchend="md=0">▲</div>
+      <div class="mobbtn" ontouchstart="md=1" ontouchend="md=0">▼</div>
+    </div>
+  </div>
+</div>
+
+<div class="winoverlay" id="win-overlay">
+  <div class="wintext" id="win-text">P1 WINS</div>
+  <div class="winsub">FIRST TO 7</div>
+  <button class="brematch" onclick="rematch()">REMATCH</button>
+  <button class="bmenu" onclick="goMenu()">MAIN MENU</button>
+</div>
+
+<script>
+const {createClient} = supabase;
+const sb = createClient(
+  'https://ksfhagyblsrlokjnyrob.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzZmhhZ3libHNybG9ram55cm9iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2NjE2OTksImV4cCI6MjA4NzIzNzY5OX0.GEk3TLzQwjYAVEL3eIBJzw6YQLOz8FtZy__iMrsCubs'
+);
+
+let uid=null, username='', myRole=null, gameId=null, gs=null;
+let ch=null, qInt=null, physInt=null, md=0;
+const keys={}, W=560, H=340, PW=12, PH=70, BR=8, WIN=7;
+const canvas=document.getElementById('c'), ctx=canvas.getContext('2d');
+
+// init anon session
+(async()=>{
+  const {data:{session}} = await sb.auth.getSession();
+  if(session) uid=session.user.id;
+  else {
+    const {data,error} = await sb.auth.signInAnonymously();
+    if(!error) uid=data.session.user.id;
+  }
+})();
+
+document.getElementById('inp-user').addEventListener('keydown', e=>{ if(e.key==='Enter') findMatch(); });
+
+async function findMatch(){
+  const raw=document.getElementById('inp-user').value.trim();
+  const err=document.getElementById('auth-err');
+  err.textContent='';
+  if(!raw||raw.length<2) return err.textContent='2+ characters needed';
+  if(!/^[a-zA-Z0-9_]+$/.test(raw)) return err.textContent='letters, numbers, _ only';
+  if(!uid){ err.textContent='connecting... try again'; return; }
+  username=raw;
+  document.getElementById('q-name').textContent=username.toUpperCase();
+  showScreen('s-queue');
+
+  // clean old queue entry
+  await sb.from('pong_queue').delete().eq('user_id',uid);
+
+  // look for waiting opponent
+  const {data:waiting} = await sb.from('pong_queue').select('*').neq('user_id',uid).order('created_at').limit(1);
+
+  if(waiting&&waiting.length>0){
+    const opp=waiting[0];
+    await sb.from('pong_queue').delete().eq('user_id',opp.user_id);
+    const {data:game} = await sb.from('pong_games').insert({
+      p1_id:opp.user_id, p1_name:opp.username,
+      p2_id:uid, p2_name:username,
+      ball_x:50, ball_y:50, ball_vx:0.4, ball_vy:0.3,
+      p1_y:50, p2_y:50, p1_score:0, p2_score:0, status:'active'
+    }).select().single();
+    myRole='p2'; gameId=game.id;
+    startGame(game);
+  } else {
+    await sb.from('pong_queue').insert({user_id:uid, username});
+    waitForGame();
+  }
+}
+
+function waitForGame(){
+  if(ch) sb.removeChannel(ch);
+  ch=sb.channel('q-'+uid)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'pong_games'},payload=>{
+      const g=payload.new;
+      if(g.p1_id===uid||g.p2_id===uid){
+        clearInterval(qInt);
+        myRole=g.p1_id===uid?'p1':'p2';
+        gameId=g.id; startGame(g);
+      }
+    }).subscribe();
+
+  // poll fallback
+  qInt=setInterval(async()=>{
+    const {data} = await sb.from('pong_games').select('*')
+      .or(`p1_id.eq.${uid},p2_id.eq.${uid}`)
+      .eq('status','active').order('created_at',{ascending:false}).limit(1);
+    if(data&&data.length>0){
+      clearInterval(qInt);
+      const g=data[0];
+      myRole=g.p1_id===uid?'p1':'p2';
+      gameId=g.id; startGame(g);
+    }
+  },2000);
+}
+
+async function cancelQueue(){
+  await sb.from('pong_queue').delete().eq('user_id',uid);
+  if(ch) sb.removeChannel(ch);
+  clearInterval(qInt);
+  showScreen('s-auth');
+}
+
+function startGame(g){
+  gs=g;
+  if(ch) sb.removeChannel(ch);
+  clearInterval(qInt);
+  showScreen('s-game');
+  document.getElementById('n-p1').textContent=g.p1_name||'P1';
+  document.getElementById('n-p2').textContent=g.p2_name||'P2';
+  document.getElementById('yt-p1').style.display=myRole==='p1'?'inline-block':'none';
+  document.getElementById('yt-p2').style.display=myRole==='p2'?'inline-block':'none';
+  updateScores();
+
+  ch=sb.channel('game-'+gameId)
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'pong_games',filter:`id=eq.${gameId}`},payload=>{
+      gs=payload.new; updateScores();
+      if(gs.p1_score>=WIN||gs.p2_score>=WIN) showWinner();
+    }).subscribe();
+
+  if(myRole==='p1'){
+    clearInterval(physInt);
+    physInt=setInterval(runPhysics,16);
+  }
+  setInterval(moveMyPaddle,40);
+  renderLoop();
+}
+
+let lastPush=0;
+function runPhysics(){
+  if(!gs||myRole!=='p1') return;
+  let {ball_x,ball_y,ball_vx,ball_vy,p1_y,p2_y,p1_score,p2_score}=gs;
+  ball_x+=ball_vx; ball_y+=ball_vy;
+  const bRh=(BR/H)*100, bRw=(BR/W)*100;
+  if(ball_y<=bRh){ball_y=bRh;ball_vy=Math.abs(ball_vy);}
+  if(ball_y>=100-bRh){ball_y=100-bRh;ball_vy=-Math.abs(ball_vy);}
+  const pWp=(PW/W)*100, pHp=(PH/H)*100;
+  if(ball_x<=pWp+bRw*2&&ball_x>pWp-bRw){
+    if(Math.abs(ball_y-p1_y)<pHp/2+bRh){ball_vx=Math.abs(ball_vx)*1.04;ball_vy+=(ball_y-p1_y)*0.05;ball_x=pWp+bRw*2;}
+  }
+  const p2X=100-pWp;
+  if(ball_x>=p2X-bRw*2&&ball_x<p2X+bRw){
+    if(Math.abs(ball_y-p2_y)<pHp/2+bRh){ball_vx=-Math.abs(ball_vx)*1.04;ball_vy+=(ball_y-p2_y)*0.05;ball_x=p2X-bRw*2;}
+  }
+  const spd=Math.sqrt(ball_vx**2+ball_vy**2);
+  if(spd>1.2){ball_vx=(ball_vx/spd)*1.2;ball_vy=(ball_vy/spd)*1.2;}
+  if(ball_x<=0){p2_score++;ball_x=50;ball_y=50;ball_vx=0.4;ball_vy=(Math.random()-0.5)*0.6;}
+  if(ball_x>=100){p1_score++;ball_x=50;ball_y=50;ball_vx=-0.4;ball_vy=(Math.random()-0.5)*0.6;}
+  gs={...gs,ball_x,ball_y,ball_vx,ball_vy,p1_score,p2_score};
+  const now=Date.now();
+  if(now-lastPush>40){lastPush=now;sb.from('pong_games').update({ball_x,ball_y,ball_vx,ball_vy,p1_score,p2_score}).eq('id',gameId);}
+  if(p1_score>=WIN||p2_score>=WIN){clearInterval(physInt);sb.from('pong_games').update({ball_x,ball_y,ball_vx,ball_vy,p1_score,p2_score,status:'done'}).eq('id',gameId);}
+}
+
+document.addEventListener('keydown',e=>{keys[e.key]=true;});
+document.addEventListener('keyup',e=>{keys[e.key]=false;});
+
+async function moveMyPaddle(){
+  if(!gs||!myRole) return;
+  const up=keys['w']||keys['W']||keys['ArrowUp']||md===-1;
+  const dn=keys['s']||keys['S']||keys['ArrowDown']||md===1;
+  if(!up&&!dn) return;
+  let y=myRole==='p1'?gs.p1_y:gs.p2_y;
+  y=Math.max(8,Math.min(92,y+(up?-1:1)*3.5));
+  if(myRole==='p1'){gs.p1_y=y;sb.from('pong_games').update({p1_y:y}).eq('id',gameId);}
+  if(myRole==='p2'){gs.p2_y=y;sb.from('pong_games').update({p2_y:y}).eq('id',gameId);}
+}
+
+function renderLoop(){draw();requestAnimationFrame(renderLoop);}
+function draw(){
+  ctx.fillStyle='#04040a';ctx.fillRect(0,0,W,H);
+  ctx.setLineDash([8,8]);ctx.strokeStyle='#1a1a2e';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(W/2,0);ctx.lineTo(W/2,H);ctx.stroke();ctx.setLineDash([]);
+  if(!gs) return;
+  const {ball_x,ball_y,p1_y,p2_y}=gs;
+  const bx=(ball_x/100)*W, by=(ball_y/100)*H;
+  const p1py=(p1_y/100)*H, p2py=(p2_y/100)*H;
+  ctx.fillStyle='#00f5ff';ctx.shadowColor='#00f5ff';ctx.shadowBlur=14;
+  ctx.beginPath();ctx.roundRect(4,p1py-PH/2,PW,PH,3);ctx.fill();
+  ctx.fillStyle='#ff00aa';ctx.shadowColor='#ff00aa';
+  ctx.beginPath();ctx.roundRect(W-PW-4,p2py-PH/2,PW,PH,3);ctx.fill();
+  ctx.fillStyle='#fff';ctx.shadowColor='#fff';ctx.shadowBlur=18;
+  ctx.beginPath();ctx.arc(bx,by,BR,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+}
+
+function updateScores(){
+  if(!gs) return;
+  document.getElementById('sc-p1').textContent=gs.p1_score;
+  document.getElementById('sc-p2').textContent=gs.p2_score;
+}
+
+function showWinner(){
+  clearInterval(physInt);
+  const txt=document.getElementById('win-text');
+  if(gs.p1_score>=WIN){txt.textContent=(gs.p1_name||'P1')+' WINS';txt.style.color='#00f5ff';txt.style.textShadow='0 0 30px rgba(0,245,255,0.8)';}
+  else{txt.textContent=(gs.p2_name||'P2')+' WINS';txt.style.color='#ff00aa';txt.style.textShadow='0 0 30px rgba(255,0,170,0.8)';}
+  document.getElementById('win-overlay').classList.add('show');
+}
+
+async function rematch(){
+  document.getElementById('win-overlay').classList.remove('show');
+  const u={p1_score:0,p2_score:0,ball_x:50,ball_y:50,ball_vx:0.4,ball_vy:0.3,p1_y:50,p2_y:50,status:'active'};
+  await sb.from('pong_games').update(u).eq('id',gameId);
+  gs={...gs,...u};
+  if(myRole==='p1'){clearInterval(physInt);physInt=setInterval(runPhysics,16);}
+}
+
+async function goMenu(){
+  document.getElementById('win-overlay').classList.remove('show');
+  clearInterval(physInt);
+  if(ch) sb.removeChannel(ch);
+  await sb.from('pong_games').update({status:'done'}).eq('id',gameId);
+  gameId=null;gs=null;myRole=null;
+  showScreen('s-auth');
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('show'));
+  document.getElementById(id).classList.add('show');
+}
+</script>
+</body>
+</html>
